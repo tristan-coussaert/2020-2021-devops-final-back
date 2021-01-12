@@ -1,99 +1,21 @@
 version: 2.1
+
+orbs:
+  python: circleci/python@0.2.1
+
 jobs:
-  build:
-    docker:
-      - image: circleci/python:3.9-buster-node-browsers
+  build-and-test:
+    executor: python/default
     steps:
       - checkout
-      - restore_cache:
-          key: deps-{{ checksum "requirements/dev.txt"}}-{{ .Environment.CACHE_VERSION }}
+      - python/load-cache
+      - python/install-deps
+      - python/save-cache
       - run:
-          name: Install dependencies in a python venv
-          command: |
-            python3 -m venv venv
-            . venv/bin/activate
-            pip install -r requirements/dev.txt
-      - save_cache:
-          key: deps-{{ checksum "requirements/dev.txt"}}-{{ .Environment.CACHE_VERSION }}
-          paths: 
-            - "venv"
-  test:
-    docker: 
-      - image: circleci/python:3.9-buster-node-browsers
-        environment:
-          DATABASE_URL: postgresql://myUsr:somePwd@localhost:5432/psdb
-          FLASK_APP: autoapp.py
-          CONDUIT_SECRET: 'something-really-secret'
-          FLASK_DEBUG: 1
-      - image: circleci/postgres:9.6.2-alpine
-        environment:
-          POSTGRES_USER: myUsr
-          POSTGRES_DB: psdb
-          POSTGRES_PASSWORD: somePwd
-    steps:
-      - checkout
-      - restore_cache:
-          key: deps-{{ checksum "requirements/dev.txt"}}-{{ .Environment.CACHE_VERSION }}
-      - run: 
-          name: Waiting for postgresql
-          command : dockerize -wait tcp://localhost:5432 -timeout 1m
-      - run: 
-          name: Launching tests
-          command: |
-            . venv/bin/activate
-            flask db upgrade
-            flask test
-  deploy-heroku:
-    docker: 
-      - image : buildpack-deps:trusty
-    steps:
-      - checkout
-      - run:
-          name: Deploy main to heroku
-          command: |
-            git config --global push.default matching
-            git push https://heroku:$HEROKU_API_KEY@git.heroku.com/$HEROKU_APP_NAME.git main
-      - run:
-          name: Smoke test
-          command: |
-            HTTPCODE=`curl -s -o /dev/null -w "%{http_code}" https://$HEROKU_APP_NAME.herokuapp.com/api/articles`
-            if [ "$HTTPCODE" -ne 200 ];then
-              echo "heroku app not responding, failing deploy"
-              exit 1
-            fi
-  docker-build-push:
-    working_directory: /dockerapp
-    docker:
-      - image: docker:17.05.0-ce-git
-    steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name:  dockerize the app 
-          command: |
-            docker build --cache-from=app -t app .
-      - run: 
-          name: Publish app to docker hub
-          command: |
-            docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_PASSWORD
-            docker tag app $DOCKER_HUB_USERNAME/tp-devops-final-api:$CIRCLE_BUILD_NUM
-            docker tag app $DOCKER_HUB_USERNAME/tp-devops-final-api:latest
-            docker push $DOCKER_HUB_USERNAME/tp-devops-final-api:$CIRCLE_BUILD_NUM
-            docker push $DOCKER_HUB_USERNAME/tp-devops-final-api:latest
+          command: ./manage.py test
+          name: Test
+
 workflows:
-  build_test_deploy:
+  main:
     jobs:
-      - build
-      - test:
-          requires:
-            - build
-      - deploy-heroku:
-          context: Heroku
-          requires: 
-            - build
-            # - test (We don't require test as there's a problem with them atm)
-      - docker-build-push:
-          context: Docker
-          requires: 
-            - build
-            # - test (We don't require test as there's a problem with them atm)
+      - build-and-test
