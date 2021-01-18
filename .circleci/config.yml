@@ -73,13 +73,13 @@ jobs:
           command: |
             docker build --cache-from=app -t app .
       - run: 
-          name: Publish app to docker hub
+          name: Login and push app to dockerhub
           command: |
             docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_PASSWORD
-            docker tag app $DOCKER_HUB_USERNAME/tp-devops-final-api:$CIRCLE_BUILD_NUM
-            docker tag app $DOCKER_HUB_USERNAME/tp-devops-final-api:latest
-            docker push $DOCKER_HUB_USERNAME/tp-devops-final-api:$CIRCLE_BUILD_NUM
-            docker push $DOCKER_HUB_USERNAME/tp-devops-final-api:latest
+            docker tag app $DOCKER_HUB_USERNAME/tp-devops-back:$CIRCLE_BUILD_NUM
+            docker tag app $DOCKER_HUB_USERNAME/tp-devops-back:latest
+            docker push $DOCKER_HUB_USERNAME/tp-devops-back:$CIRCLE_BUILD_NUM
+            docker push $DOCKER_HUB_USERNAME/tp-devops-back:latest
 workflows:
   build_test_deploy:
     jobs:
